@@ -21,7 +21,25 @@ class DifferentialEquation(VariablePopulationObject):
         "function": str,
         "variable": str,
     }
+    """
+    Builds a `VariablePortedObject` with variable port `variable` exposing the ODE `function`.
+
+    Example:
+        ```json title=".json format"
+        {
+            "function": <function(str, required, not searched), required>,
+            "variable": <variable(str, default = "var", searched>,
+        } 
+        ```
+
+    Keyword Args: Required parameters
+        function (str): string representation of the ODE function to be parsed. Required.
+
+    Keyword Args: Searched parameters 
+        variable (str, optional): name of the variable port exposing the ODE. Defaults to "var".
+    """
     def __init__(self, function, variable = None, **ported_object_kwargs):
+        print("HERE3", ported_object_kwargs)
         super().__init__(**ported_object_kwargs)
         self.parse_parameters(function=function, variable=variable)
 
@@ -39,16 +57,17 @@ class DifferentialEquations(CompositePopulationObject):
     }
     def __init__(self, odes = None, **ported_object_kwargs):
         """
-        Accepts a dict of functions (from JSON) or a list of Function objects.
+        Accepts a dict of odes (from JSON) or a list of DifferentialEquation objects.
 
         Expected:
-            Functions(functions=[Function(), Function(), ...], name="my_functions")
+            DifferentialEquations(odes=[DifferentialEquation(), DifferentialEquation(), ...], name="my_odes")
             or
-            Functions(functions={"func_1": {}, "func_2": {}}, name="my_functions")
+            DifferentialEquations(odes={"ode_1": {}, "ode_2": {}}, name="my_odes")
 
         
         """
         super().__init__(**ported_object_kwargs)
+        print("HERE2", odes)
         self.parse_parameters(odes=odes)
 
     def build_object(self):
