@@ -1,8 +1,30 @@
 
 
-from ..abstract.population_objects import FunctionalPopulationObject, CompositePopulationObject
+from ..abstract.population_objects import FunctionalPopulationObject
+from ..abstract.structured_objects import (
+    AgeStructuredFunctionalPopulationObject,
+    AgeStructuredCompositePopulationObject,
+)
 
-from sympy import parse_expr, solve, symbols
+def _normalise_structured_ports(port_mapping: dict | None, axis_name: str) -> dict:
+    """Ensure structured port entries include the age axis."""
+    if not port_mapping:
+        return {}
+
+    normalised: dict[str, dict] = {}
+    for port_name, value in port_mapping.items():
+        if isinstance(value, dict):
+            entry = dict(value)
+            axes = entry.get("axes")
+            if not axes:
+                entry["axes"] = [axis_name]
+            normalised[port_name] = entry
+        else:
+            entry = {"axes": [axis_name]}
+            if value not in (None, {}):
+                entry["connection"] = value
+            normalised[port_name] = entry
+    return normalised
 
 #from pbdm.age_structure.age_structure import AgeStructuredObject
 #from psymple.build import HIERARCHY_SEPARATOR
@@ -48,7 +70,7 @@ class Function(FunctionalPopulationObject):
     Keyword Args: Searched parameters 
         output_name (str, optional): name of the port exposing the function. Defaults to "function".
     """
-    def __init__(self, function, output_name = None, **ported_object_kwargs):
+    def __init__(self, function = None, output_name = None, **ported_object_kwargs):
         super().__init__(**ported_object_kwargs)
         self.parse_parameters(function=function, output_name=output_name)
 
@@ -60,10 +82,167 @@ class Function(FunctionalPopulationObject):
         self.add_parameter_assignments(assignment)
         super().build_object()
 
-class Functions(CompositePopulationObject):
-    PARSING_DATA = {
-        "functions": Function
+
+class AgeStructuredFunction(AgeStructuredFunctionalPopulationObject):
+    PARSING_DATA = AgeStructuredFunctionalPopulationObject.PARSING_DATA | {
+        "function": str,
+        "output_name": str,
     }
+
+    def __init__(
+        self,
+        function: str | None = None,
+        output_name: str | None = None,
+        age_axis: dict | None = None,
+        structured_inputs: dict | None = None,
+        **ported_object_kwargs,
+    ):
+
+        self._raw_structured_inputs = dict(structured_inputs or {})
+
+        super().__init__(
+            age_axis=age_axis,
+            structured_assignments={},
+            **ported_object_kwargs,
+        )
+
+        print("AGE STRUCTURED FUNCTION INIT", function, output_name)
+
+        self.parse_parameters(function=function, output_name=output_name)
+
+    def build_object(self):
+        axis_name, _ = self.get_age_axis_config()
+        assignment_name = self.get_parameter("output_name", default="function")
+        function_expr = self.get_parameter("function", search_ancestry=False)
+
+        structured_assignments = {
+            assignment_name: {
+                "axes": [axis_name],
+                "function": function_expr,
+            }
+        }
+
+        structured_inputs = _normalise_structured_ports(
+            self._raw_structured_inputs,
+            axis_name,
+        )
+
+        self.parameters.set(
+            structured_assignments=structured_assignments,
+            structured_inputs=structured_inputs,
+        )
+
+        super().build_object()
+
+
+class AgeStructuredIntegral(AgeStructuredFunctionalPopulationObject):
+    PARSING_DATA = AgeStructuredFunctionalPopulationObject.PARSING_DATA | {
+        "function": str,
+        "output_name": str,
+        "lower_index": int,
+        "upper_index": int,
+        "measure": str,
+    }
+
+    def __init__(
+        self,
+        function: str | None = None,
+        output_name: str | None = None,
+        age_axis: dict | None = None,
+        lower_index: int | None = None,
+        upper_index: int | None = None,
+        measure: str | None = None,
+        structured_inputs: dict | None = None,
+        **ported_object_kwargs,
+    ):
+
+        self._raw_structured_inputs = dict(structured_inputs or {})
+
+        super().__init__(
+            age_axis=age_axis,
+            structured_assignments={},
+            **ported_object_kwargs,
+        )
+
+        assignment_name = output_name or "integral"
+        self.parse_parameters(
+            function=function,
+            output_name=assignment_name,
+            lower_index=lower_index,
+            upper_index=upper_index,
+            measure=measure,
+        )
+
+    def build_object(self):
+        axis_name, _ = self.get_age_axis_config()
+        function_expr = self.get_parameter("function", search_ancestry=False)
+        assignment_name = self.get_parameter("output_name", default="integral")
+
+        try:
+            lower_index = self.get_parameter("lower_index", search_ancestry=False)
+        except Exception:
+            lower_index = None
+
+        try:
+            upper_index = self.get_parameter("upper_index", search_ancestry=False)
+        except Exception:
+            upper_index = None
+
+        try:
+            measure = self.get_parameter("measure", search_ancestry=False)
+        except Exception:
+            measure = None
+
+        combined_measure = measure
+        axis_index_variable = self._axis_index_variable(axis_name)
+
+        bounds_conditions = []
+        if lower_index is not None:
+            bounds_conditions.append(f"{axis_index_variable} >= {lower_index}")
+        if upper_index is not None:
+            bounds_conditions.append(f"{axis_index_variable} <= {upper_index}")
+        if bounds_conditions:
+            condition = (
+                bounds_conditions[0]
+                if len(bounds_conditions) == 1
+                else f"And({', '.join(bounds_conditions)})"
+            )
+            bounds_expr = f"Piecewise((1, {condition}), (0, True))"
+            combined_measure = (
+                bounds_expr
+                if combined_measure is None
+                else f"({combined_measure})*({bounds_expr})"
+            )
+
+        reducers = {axis_name: {"method": "sum"}}
+        if combined_measure is not None:
+            reducers[axis_name]["measure"] = combined_measure
+
+        structured_assignments = {
+            assignment_name: {
+                "axes": [],
+                "function": function_expr,
+                "reducers": reducers,
+            }
+        }
+
+        structured_inputs = _normalise_structured_ports(
+            self._raw_structured_inputs,
+            axis_name,
+        )
+
+        self.parameters.set(
+            structured_assignments=structured_assignments,
+            structured_inputs=structured_inputs,
+        )
+
+        super().build_object()
+
+class Functions(AgeStructuredCompositePopulationObject):
+    PARSING_DATA = (
+        AgeStructuredCompositePopulationObject.PARSING_DATA
+        | {"functions": Function}
+    )
     def __init__(self, functions = None, **ported_object_kwargs):
         """
         Accepts a dict of functions (from JSON) or a list of Function objects.
@@ -85,7 +264,13 @@ class Functions(CompositePopulationObject):
             type = function_data.get("type", "single")
             if type == "single":
                 function_class = Function
-        
+            elif type == "age_structured":
+                function_class = AgeStructuredFunction
+            elif type == "age_integral":
+                function_class = AgeStructuredIntegral
+            else:
+                raise ValueError(f"Unknown function type '{type}' for '{function_name}'.")
+
             function_object = function_class(name=function_name, **function_data)
             self.add_children(function_object)
 
@@ -94,11 +279,32 @@ class Functions(CompositePopulationObject):
         # NOTE: Manual expose for now
         for child in self.children.values():
             print("CHILD", child.name, child.output_ports)
-            assert len(child.output_ports) == 1
-            self.add_output_ports(child.name)
-            output_name = child.get_parameter("output_name")
-            child.add_output_connections(**{output_name: f"{self.name}.{child.name}"})
-            print("CHILD output connection", child.address, output_name, f"{self.name}.{child.name}")
+            if len(child.output_ports) == 1:
+                output_name = next(iter(child.output_ports))
+                exposed_name = child.name
+                self.add_output_ports(exposed_name)
+                child.add_output_connections(
+                    **{output_name: f"{self.name}.{exposed_name}"}
+                )
+                print(
+                    "CHILD output connection",
+                    child.address,
+                    output_name,
+                    f"{self.name}.{exposed_name}",
+                )
+            else:
+                for output_name in child.output_ports:
+                    exposed_name = f"{child.name}__{output_name}"
+                    self.add_output_ports(exposed_name)
+                    child.add_output_connections(
+                        **{output_name: f"{self.name}.{exposed_name}"}
+                    )
+                    print(
+                        "CHILD output connection",
+                        child.address,
+                        output_name,
+                        f"{self.name}.{exposed_name}",
+                    )
 
 
 """ class FunctionsOLD(CompositePopulationObject):

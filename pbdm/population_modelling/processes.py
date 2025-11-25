@@ -1,8 +1,9 @@
 from .odes import DifferentialEquations
 from .functions import Functions
-from ..abstract.population_objects import CompositePopulationObject
+#from ..abstract.population_objects import CompositePopulationObject
+from ..abstract.structured_objects import AgeStructuredCompositePopulationObject
 
-class PopulationProcess(CompositePopulationObject):
+class PopulationProcess(AgeStructuredCompositePopulationObject):
     PARSING_DATA = {
         "rates": Functions,
         "variables": DifferentialEquations,
@@ -182,7 +183,7 @@ class PopulationProcess(CompositePopulationObject):
                         print("Adding input connection", object.name, function, f"{self.name}.functions.{function}")
 
 
-class PopulationProcesses(CompositePopulationObject):
+class PopulationProcesses(AgeStructuredCompositePopulationObject):
     PARSING_DATA = {
         "processes": PopulationProcess
     }

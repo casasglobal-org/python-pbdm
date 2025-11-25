@@ -3,10 +3,10 @@ from ..abstract.population_objects import CompositePopulationObject
 from ..core.base import ModelWithFunctions
 from .functions import Functions
 from .processes import PopulationProcesses
-from .dynamics import PopulationDynamics
+from .dynamics.dynamics import PopulationDynamics
 
 class Population(ModelWithFunctions):
-    PARSING_DATA = {
+    PARSING_DATA = ModelWithFunctions.PARSING_DATA | {
         "functions": Functions,
         "sub_populations": dict,
         "dynamics": PopulationDynamics,

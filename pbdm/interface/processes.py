@@ -10,7 +10,6 @@ class PBDMBasicProcess(PopulationProcess):
     ):
         super().__init__(name=name, rates=Functions(functions=[]))
 
-
 class PBDMBiodemographicProcess(PopulationProcess):
     """
     TODO: A biodemographic process should be limited to accepting a biodemographic function as its rate.

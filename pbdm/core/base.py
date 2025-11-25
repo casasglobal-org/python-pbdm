@@ -1,7 +1,8 @@
-from ..abstract.population_objects import CompositePopulationObject
+#from ..abstract.population_objects import CompositePopulationObject
 from ..population_modelling.functions import Functions
+from ..abstract.structured_objects import AgeStructuredCompositePopulationObject
 
-class ModelWithFunctions(CompositePopulationObject):
+class ModelWithFunctions(AgeStructuredCompositePopulationObject):
     def __init__(self, functions=None, **ported_object_kwargs):
         super().__init__(**ported_object_kwargs)
         self.parse_parameters(functions=functions)

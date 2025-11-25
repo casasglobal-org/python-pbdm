@@ -1,5 +1,6 @@
-from .odes import DifferentialEquations
-from ..abstract.population_objects import CompositePopulationObject
+from ..odes import DifferentialEquations
+from ...abstract.population_objects import CompositePopulationObject
+from ..functions import AgeStructuredFunction
 
 class PopulationDynamics(CompositePopulationObject):
     PARSING_DATA = {

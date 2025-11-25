@@ -4,12 +4,12 @@ class ODESystem(VariablePopulationObject):
     PARSING_DATA = {
         "odes": dict
     }
-    def __init__(self, odes, **ported_object_kwargs):
+    def __init__(self, odes=None, **ported_object_kwargs):
         super().__init__(**ported_object_kwargs)
         self.parse_parameters(odes=odes)
     
     def build_object(self):
-        odes = self.get_parameter("odes", search_ancestry=False)
+        odes = self.get_parameter("odes", default={}, search_ancestry=False)
         assignments = list(odes.items())
         print(assignments)
         self.add_variable_assignments(*assignments)
