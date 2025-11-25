@@ -1,30 +1,11 @@
 
 
 from ..abstract.population_objects import FunctionalPopulationObject
-from ..abstract.structured_objects import (
+from ..age_structure.objects import (
     AgeStructuredFunctionalPopulationObject,
     AgeStructuredCompositePopulationObject,
 )
-
-def _normalise_structured_ports(port_mapping: dict | None, axis_name: str) -> dict:
-    """Ensure structured port entries include the age axis."""
-    if not port_mapping:
-        return {}
-
-    normalised: dict[str, dict] = {}
-    for port_name, value in port_mapping.items():
-        if isinstance(value, dict):
-            entry = dict(value)
-            axes = entry.get("axes")
-            if not axes:
-                entry["axes"] = [axis_name]
-            normalised[port_name] = entry
-        else:
-            entry = {"axes": [axis_name]}
-            if value not in (None, {}):
-                entry["connection"] = value
-            normalised[port_name] = entry
-    return normalised
+from ._structured_ports import _normalise_structured_ports
 
 #from pbdm.age_structure.age_structure import AgeStructuredObject
 #from psymple.build import HIERARCHY_SEPARATOR

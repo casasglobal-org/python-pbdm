@@ -1,4 +1,9 @@
-from ..abstract.population_objects import VariablePopulationObject, CompositePopulationObject
+from ..abstract.population_objects import VariablePopulationObject
+from ..age_structure.objects import (
+    AgeStructuredCompositePopulationObject,
+    AgeStructuredVariablePopulationObject,
+)
+from ._structured_ports import _normalise_structured_ports
 
 class ODESystem(VariablePopulationObject):
     PARSING_DATA = {
@@ -51,11 +56,62 @@ class DifferentialEquation(VariablePopulationObject):
         self.add_variable_assignments(assignment)
         super().build_object()
 
-class DifferentialEquations(CompositePopulationObject):
-    PARSING_DATA = {
-        "odes": DifferentialEquation
+
+class AgeStructuredDifferentialEquation(AgeStructuredVariablePopulationObject):
+    PARSING_DATA = AgeStructuredVariablePopulationObject.PARSING_DATA | {
+        "function": str,
+        "variable": str,
     }
-    def __init__(self, odes = None, **ported_object_kwargs):
+
+    def __init__(
+        self,
+        function: str | None = None,
+        variable: str | None = None,
+        age_axis: dict | None = None,
+        structured_inputs: dict | None = None,
+        **ported_object_kwargs,
+    ):
+        self._raw_structured_inputs = dict(structured_inputs or {})
+
+        super().__init__(
+            age_axis=age_axis,
+            structured_assignments={},
+            **ported_object_kwargs,
+        )
+
+        self.parse_parameters(function=function, variable=variable)
+
+    def build_object(self):
+        axis_name, _ = self.get_age_axis_config()
+        variable_name = self.get_parameter("variable", default="var")
+        function_expr = self.get_parameter("function", search_ancestry=False)
+
+        structured_assignments = {
+            variable_name: {
+                "axes": [axis_name],
+                "function": function_expr,
+            }
+        }
+
+        structured_inputs = _normalise_structured_ports(
+            self._raw_structured_inputs,
+            axis_name,
+        )
+
+        self.parameters.set(
+            structured_assignments=structured_assignments,
+            structured_inputs=structured_inputs,
+        )
+
+        super().build_object()
+
+class DifferentialEquations(AgeStructuredCompositePopulationObject):
+    PARSING_DATA = (
+        AgeStructuredCompositePopulationObject.PARSING_DATA
+        | {"odes": DifferentialEquation}
+    )
+
+    def __init__(self, odes=None, **ported_object_kwargs):
         """
         Accepts a dict of odes (from JSON) or a list of DifferentialEquation objects.
 
@@ -64,7 +120,6 @@ class DifferentialEquations(CompositePopulationObject):
             or
             DifferentialEquations(odes={"ode_1": {}, "ode_2": {}}, name="my_odes")
 
-        
         """
         super().__init__(**ported_object_kwargs)
         print("HERE2", odes)
@@ -74,13 +129,20 @@ class DifferentialEquations(CompositePopulationObject):
         odes = self.get_parameter("odes", {})
         print("ODES", odes)
         for ode_name, ode_data in odes.items():
-            type = ode_data.get("type", "single")
-            #output_name = function_data.get("output_name", "function")
-            #expose = function_data.get("expose", True)
-            if type == "single":
+            ode_type = ode_data.get("type", "single")
+            if ode_type == "single":
                 ode_class = DifferentialEquation
+            elif ode_type == "age_structured":
+                ode_class = AgeStructuredDifferentialEquation
+            else:
+                raise ValueError(
+                    "DifferentialEquations only accepts 'single' or 'age_structured'"
+                    f" entries. Received '{ode_type}' for '{ode_name}'."
+                )
 
-            ode_object = ode_class(name=ode_name, **ode_data)
+            ode_kwargs = dict(ode_data)
+            ode_kwargs.pop("type", None)
+            ode_object = ode_class(name=ode_name, **ode_kwargs)
             self.add_children(ode_object)
 
         super().build_object()

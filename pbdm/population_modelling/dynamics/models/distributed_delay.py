@@ -1,5 +1,5 @@
 from ...odes import ODESystem
-from ....abstract.structured_objects import AgeStructuredCompositePopulationObject
+from ....age_structure.objects import AgeStructuredCompositePopulationObject
 from ...functions import AgeStructuredFunction
 
 class DistributedDelayODEs(ODESystem):

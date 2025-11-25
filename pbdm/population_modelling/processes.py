@@ -1,7 +1,7 @@
 from .odes import DifferentialEquations
 from .functions import Functions
 #from ..abstract.population_objects import CompositePopulationObject
-from ..abstract.structured_objects import AgeStructuredCompositePopulationObject
+from ..age_structure.objects import AgeStructuredCompositePopulationObject
 
 class PopulationProcess(AgeStructuredCompositePopulationObject):
     PARSING_DATA = {

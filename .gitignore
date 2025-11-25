@@ -188,6 +188,11 @@ Thumbs.db
 *.swo
 *~
 
+# Output diagrams
+*.png
+*.svg
+*.pdf
+
 # Testing
 test_*.py
 pbdm/api/sample.json
