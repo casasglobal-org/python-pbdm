@@ -20,7 +20,8 @@ class PopulationObject(PortedObjectWithSearch, ParameterSearchObject):
     }
 
     def build_object(self):
-        print("Building Population Object", self.address)
+        #print("Building Population Object", self.address)
+        pass
 
     def search_inputs(self, search_rule, skip_inputs=set()):
         def _filter_callback(missing_inputs: set[str]) -> set[str]:
@@ -64,6 +65,7 @@ class CompositePopulationObject(
 
     def build_children(self):
         for child in self.children.values():
+            #print("BUILD CHILD", child.address)
             child.build_object()
 
     def build_object(self):

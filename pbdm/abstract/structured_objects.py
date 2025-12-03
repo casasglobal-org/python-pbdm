@@ -6,6 +6,7 @@ from .population_objects import (
 )
 
 from itertools import product
+from copy import deepcopy
 
 from sympy import S, Symbol, parse_expr, sympify
 
@@ -22,26 +23,267 @@ structured_axes = {
 class StructuredPopulationObject(PopulationObject):
     PARSING_DATA = {
         "structured_axes": dict,
-        "structured_inputs": dict,
-        "structured_outputs": dict,
-        "structured_variables": dict,
     }
 
     def __init__(
         self,
-        structured_axes: dict = {},
-        structured_inputs: dict = {},
-        structured_outputs: dict = {},
-        structured_variables: dict = {},
+        structured_axes: dict | None = None,
+        structured_inputs: dict | None = None,
+        structured_outputs: dict | None = None,
+        structured_variables: dict | None = None,
         **ported_object_kwargs,
     ):
+        self._structured_port_specs = {
+            "inputs": {},
+            "outputs": {},
+            "variables": {},
+        }
+        self._compiled_structured_port_names = {
+            "inputs": set(),
+            "outputs": set(),
+            "variables": set(),
+        }
+        self._structured_ports_compiled = False
+
         super().__init__(**ported_object_kwargs)
-        self.parse_parameters(
-            structured_axes=structured_axes,
-            structured_inputs=structured_inputs,
-            structured_outputs=structured_outputs,
-            structured_variables=structured_variables,
-        )
+        self.parse_parameters(structured_axes=structured_axes or {})
+
+        self._ingest_structured_port_mapping("inputs", structured_inputs)
+        self._ingest_structured_port_mapping("outputs", structured_outputs)
+        self._ingest_structured_port_mapping("variables", structured_variables)
+
+    def _ingest_structured_port_mapping(
+        self,
+        collection_name: str,
+        port_mapping: dict | None,
+    ) -> None:
+        if not port_mapping:
+            return
+        for port_name, entry in port_mapping.items():
+            coerced = self._coerce_structured_port_spec(collection_name, entry)
+            self._update_structured_port_spec(collection_name, port_name, coerced)
+
+    def _coerce_structured_port_spec(self, collection_name: str, entry) -> dict:
+        if isinstance(entry, dict):
+            spec = dict(entry)
+        else:
+            if entry in (None, {}):
+                spec = {}
+            elif collection_name == "inputs":
+                spec = {"connection": entry}
+            else:
+                values = entry if isinstance(entry, (list, tuple, set)) else [entry]
+                spec = {"connections": list(values)}
+
+        axes = spec.get("axes")
+        if axes is not None:
+            spec["axes"] = self._normalise_axes(axes)
+
+        if collection_name != "inputs":
+            if "connections" in spec:
+                spec["connections"] = self._normalise_connections(spec["connections"])
+            else:
+                connection_value = spec.pop("connection", None)
+                if connection_value is not None:
+                    spec["connections"] = self._normalise_connections(connection_value)
+
+        return spec
+
+    def _update_structured_port_spec(
+        self,
+        collection_name: str,
+        port_name: str,
+        update: dict,
+    ) -> dict:
+        specs = self._structured_port_specs[collection_name]
+        entry = dict(specs.get(port_name, {}))
+        if not update:
+            specs[port_name] = entry
+            return entry
+
+        axes = update.get("axes")
+        if axes is not None:
+            update["axes"] = self._normalise_axes(axes)
+
+        if collection_name != "inputs" and "connections" in update:
+            update["connections"] = self._normalise_connections(update["connections"])
+
+        entry.update({k: v for k, v in update.items() if v is not None})
+        specs[port_name] = entry
+        self._structured_ports_compiled = False
+        self._sync_structured_port_parameters(collection_name)
+        return entry
+
+    @staticmethod
+    def _normalise_axes(axes: list | tuple | set | None) -> list | None:
+        if axes is None:
+            return None
+        return list(axes)
+
+    @staticmethod
+    def _normalise_connections(values: list | tuple | set | str | None) -> list | None:
+        if values is None:
+            return None
+        if isinstance(values, (list, tuple, set)):
+            return list(values)
+        return [values]
+
+    def add_structured_input(
+        self,
+        name: str,
+        *,
+        axes: list | tuple | set | None = None,
+        connection: str | None = None,
+        spec=None,
+        **extra,
+    ) -> dict:
+        update = dict(extra)
+        if spec is not None:
+            update.update(self._coerce_structured_port_spec("inputs", spec))
+        if axes is not None:
+            update["axes"] = axes
+        if connection is not None:
+            update["connection"] = connection
+        return self._update_structured_port_spec("inputs", name, update)
+
+    def add_structured_output(
+        self,
+        name: str,
+        *,
+        axes: list | tuple | set | None = None,
+        connections: list | tuple | set | str | None = None,
+        spec=None,
+        **extra,
+    ) -> dict:
+        update = dict(extra)
+        if spec is not None:
+            update.update(self._coerce_structured_port_spec("outputs", spec))
+        if axes is not None:
+            update["axes"] = axes
+        if connections is not None:
+            update["connections"] = connections
+        #print("ADDING STRUCTURED OUTPUT", name, update)
+        return self._update_structured_port_spec("outputs", name, update)
+
+    def add_structured_variable(
+        self,
+        name: str,
+        *,
+        axes: list | tuple | set | None = None,
+        connections: list | tuple | set | str | None = None,
+        spec=None,
+        **extra,
+    ) -> dict:
+        update = dict(extra)
+        if spec is not None:
+            update.update(self._coerce_structured_port_spec("variables", spec))
+        if axes is not None:
+            update["axes"] = axes
+        if connections is not None:
+            update["connections"] = connections
+        return self._update_structured_port_spec("variables", name, update)
+
+    def _set_structured_port_collection(
+        self,
+        kind: str,
+        mapping: dict | None,
+    ) -> None:
+        normalised = {}
+        if mapping:
+            for name, entry in mapping.items():
+                normalised[name] = self._coerce_structured_port_spec(kind, entry)
+        self._structured_port_specs[kind] = normalised
+        self._structured_ports_compiled = False
+        self._sync_structured_port_parameters(kind)
+
+    def set_structured_inputs(self, mapping: dict | None) -> None:
+        self._set_structured_port_collection("inputs", mapping)
+
+    def set_structured_outputs(self, mapping: dict | None) -> None:
+        self._set_structured_port_collection("outputs", mapping)
+
+    def set_structured_variables(self, mapping: dict | None) -> None:
+        self._set_structured_port_collection("variables", mapping)
+
+    def _sync_structured_port_parameters(self, kind: str | None = None) -> None:
+        mapping = {
+            "inputs": "structured_inputs",
+            "outputs": "structured_outputs",
+            "variables": "structured_variables",
+        }
+        target_kinds = mapping.keys() if kind is None else (kind,)
+        for internal_kind in target_kinds:
+            parameter_name = mapping[internal_kind]
+            self.parameters.set(
+                **{parameter_name: deepcopy(self._structured_port_specs[internal_kind])}
+            )
+
+    def _copy_structured_port_specs(self, kind: str) -> dict:
+        return deepcopy(self._structured_port_specs[kind])
+
+    def get_structured_inputs_spec(self) -> dict:
+        return self._copy_structured_port_specs("inputs")
+
+    def get_structured_outputs_spec(self) -> dict:
+        return self._copy_structured_port_specs("outputs")
+
+    def get_structured_variables_spec(self) -> dict:
+        return self._copy_structured_port_specs("variables")
+
+    def compile_structured_ports(self, *, force: bool = False) -> None:
+        self._compile_structured_ports(force=force)
+
+    def _compile_structured_ports(self, *, force: bool = False) -> None:
+        for kind in ("inputs", "outputs", "variables"):
+            self._compile_structured_port_collection(kind, force=force)
+        self._structured_ports_compiled = True
+
+    def _compile_structured_port_collection(self, kind: str, *, force: bool = False) -> None:
+        specs = self._structured_port_specs[kind]
+        compiled_names = self._compiled_structured_port_names[kind]
+        for port, data in specs.items():
+            axes = data.get("axes", [])
+            axis_combos, port_names = self._structured_names(port, axes)
+            entries = list(zip(port_names, axis_combos))
+
+            names_to_add = [
+                name for name, _ in entries if name not in compiled_names
+            ]
+            if names_to_add:
+                if kind == "inputs":
+                    self.add_input_ports(*names_to_add)
+                elif kind == "outputs":
+                    self.add_output_ports(*names_to_add)
+                else:
+                    self.add_variable_ports(*names_to_add)
+                compiled_names.update(names_to_add)
+
+            if not entries:
+                continue
+
+            if kind == "inputs":
+                connection = data.get("connection")
+                if connection:
+                    mapping = {
+                        port_name: self._structured_name(connection, combo)
+                        for port_name, combo in entries
+                    }
+                    if mapping:
+                        self.add_input_connections(**mapping)
+            else:
+                connections = data.get("connections") or []
+                if connections:
+                    mapping = {}
+                    for connection in connections:
+                        for port_name, combo in entries:
+                            mapping[port_name] = self._structured_name(
+                                connection, combo
+                            )
+                    if mapping:
+                        if kind == "outputs":
+                            self.add_output_connections(**mapping)
+                        else:
+                            self.add_variable_connections(**mapping)
 
     def _iter_axis_combinations(self, axes):
         axes = list(axes)
@@ -127,61 +369,6 @@ class StructuredPopulationObject(PopulationObject):
 
         substituted_expr = index_expr.subs(substitution)
         return sympify(substituted_expr)
-    
-
-    def build_object(self):
-        structured_inputs = self.get_parameter(
-            "structured_inputs", default={}, search_ancestry=False
-        )
-        structured_outputs = self.get_parameter(
-            "structured_outputs", default={}, search_ancestry=False
-        )
-        structured_variables = self.get_parameter(
-            "structured_variables", default={}, search_ancestry=False
-        )
-        for port, data in structured_inputs.items():
-            axes = data.get("axes", [])
-            connection = data.get("connection", {})
-            axis_combos, port_names = self._structured_names(port, axes)
-            if port_names:
-                self.add_input_ports(*port_names)
-            if connection:
-                self.add_input_connections(
-                    **{
-                        port_name: self._structured_name(connection, combo)
-                        for port_name, combo in zip(port_names, axis_combos)
-                    }
-                )
-
-        for port, data in structured_outputs.items():
-            axes = data.get("axes", [])
-            connections = data.get("connections", {})
-            axis_combos, port_names = self._structured_names(port, axes)
-            if port_names:
-                self.add_output_ports(*port_names)
-            if connections:
-                mapping = {}
-                for connection in connections:
-                    for port_name, combo in zip(port_names, axis_combos):
-                        mapping[port_name] = self._structured_name(connection, combo)
-                if mapping:
-                    self.add_output_connections(**mapping)
-
-        for port, data in structured_variables.items():
-            axes = data.get("axes", [])
-            connections = data.get("connections", {})
-            axis_combos, port_names = self._structured_names(port, axes)
-            if port_names:
-                self.add_variable_ports(*port_names)
-            if connections:
-                mapping = {}
-                for connection in connections:
-                    for port_name, combo in zip(port_names, axis_combos):
-                        mapping[port_name] = self._structured_name(connection, combo)
-                if mapping:
-                    self.add_variable_connections(**mapping)
-
-        super().build_object()
 
     def _generate_structured_assignments(
         self,
@@ -234,6 +421,7 @@ class StructuredPopulationObject(PopulationObject):
                 input_name: Symbol(input_name)
                 for input_name in structured_inputs.keys()
             }
+            local_dict.setdefault(assignment_name, Symbol(assignment_name))
             for axis in axes:
                 local_dict.setdefault(axis, Symbol(axis))
                 axis_index_variable = self._axis_index_variable(axis)
@@ -302,6 +490,7 @@ class StructuredPopulationObject(PopulationObject):
                             self._structured_name(input_name, input_indices)
                         )
 
+                    substitution[assignment_name] = sympify(full_assignment_name)
                     term_expr = sympify(parse_function.subs(substitution))
 
                     weights = {}
@@ -524,5 +713,11 @@ class StructuredCompositePopulationObject(
     CompositePopulationObject, StructuredPopulationObject
 ):
     pass
+
+    def compile_structured_ports(self, *, force = False):
+        for child in self.children.values():
+            if isinstance(child, StructuredPopulationObject):
+                child.compile_structured_ports(force=force)
+        super().compile_structured_ports(force=force)
 
 

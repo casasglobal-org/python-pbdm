@@ -48,7 +48,6 @@ class PopulationBuilder(Builder):
         species_data = data.get("species_info", {})
 
         for population in sub_populations:
-            print(f"Building population: {population}")
             process_objects = self.get_data_by_process(population, process_data)
             population_object = FunctionalPopulation(
                 name=population,

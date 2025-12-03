@@ -3,7 +3,6 @@ from ..age_structure.objects import (
     AgeStructuredCompositePopulationObject,
     AgeStructuredVariablePopulationObject,
 )
-from ._structured_ports import _normalise_structured_ports
 
 class ODESystem(VariablePopulationObject):
     PARSING_DATA = {
@@ -16,7 +15,6 @@ class ODESystem(VariablePopulationObject):
     def build_object(self):
         odes = self.get_parameter("odes", default={}, search_ancestry=False)
         assignments = list(odes.items())
-        print(assignments)
         self.add_variable_assignments(*assignments)
         super().build_object()
         self.odes = odes
@@ -44,7 +42,6 @@ class DifferentialEquation(VariablePopulationObject):
         variable (str, optional): name of the variable port exposing the ODE. Defaults to "var".
     """
     def __init__(self, function, variable = None, **ported_object_kwargs):
-        print("HERE3", ported_object_kwargs)
         super().__init__(**ported_object_kwargs)
         self.parse_parameters(function=function, variable=variable)
 
@@ -52,7 +49,6 @@ class DifferentialEquation(VariablePopulationObject):
         function = self.get_parameter("function", search_ancestry=False)
         variable = self.get_parameter("variable", default="var")
         assignment = (variable, function)
-        print(assignment)
         self.add_variable_assignments(assignment)
         super().build_object()
 
@@ -69,13 +65,14 @@ class AgeStructuredDifferentialEquation(AgeStructuredVariablePopulationObject):
         variable: str | None = None,
         age_axis: dict | None = None,
         structured_inputs: dict | None = None,
+        structured_variables: dict | None = None,
         **ported_object_kwargs,
     ):
-        self._raw_structured_inputs = dict(structured_inputs or {})
-
         super().__init__(
             age_axis=age_axis,
             structured_assignments={},
+            structured_inputs=structured_inputs,
+            structured_variables=structured_variables,
             **ported_object_kwargs,
         )
 
@@ -86,6 +83,8 @@ class AgeStructuredDifferentialEquation(AgeStructuredVariablePopulationObject):
         variable_name = self.get_parameter("variable", default="var")
         function_expr = self.get_parameter("function", search_ancestry=False)
 
+        self.add_structured_variable(variable_name)
+
         structured_assignments = {
             variable_name: {
                 "axes": [axis_name],
@@ -93,14 +92,8 @@ class AgeStructuredDifferentialEquation(AgeStructuredVariablePopulationObject):
             }
         }
 
-        structured_inputs = _normalise_structured_ports(
-            self._raw_structured_inputs,
-            axis_name,
-        )
-
         self.parameters.set(
             structured_assignments=structured_assignments,
-            structured_inputs=structured_inputs,
         )
 
         super().build_object()
@@ -122,12 +115,10 @@ class DifferentialEquations(AgeStructuredCompositePopulationObject):
 
         """
         super().__init__(**ported_object_kwargs)
-        print("HERE2", odes)
         self.parse_parameters(odes=odes)
 
     def build_object(self):
-        odes = self.get_parameter("odes", {})
-        print("ODES", odes)
+        odes = self.get_parameter("odes", default={}, search_ancestry=False)
         for ode_name, ode_data in odes.items():
             ode_type = ode_data.get("type", "single")
             if ode_type == "single":

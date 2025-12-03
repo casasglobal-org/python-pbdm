@@ -1,6 +1,7 @@
 from .odes import DifferentialEquations
 from .functions import Functions
 #from ..abstract.population_objects import CompositePopulationObject
+from ..age_structure.helpers import get_age_structured_port_set
 from ..age_structure.objects import AgeStructuredCompositePopulationObject
 
 class PopulationProcess(AgeStructuredCompositePopulationObject):
@@ -112,7 +113,6 @@ class PopulationProcess(AgeStructuredCompositePopulationObject):
     def build_object(self):
         action_objects = []
         rates = self.get_parameter("rates", default = {}, search_ancestry=False)
-        print("RATES", rates)
         if rates:
             functions_class = self.PARSING_DATA["rates"]
             rates_object = functions_class(name="rates", **rates)
@@ -134,10 +134,15 @@ class PopulationProcess(AgeStructuredCompositePopulationObject):
         if functions:
             functions_class = self.PARSING_DATA["functions"]
             functions_object = functions_class(name="functions", **functions)
-            self.add_children(functions_object)
+            self.add_children(functions_object)        
 
-        # TODO: super method
+
         super().build_object()
+
+        """
+        1. Wire rates into outputs and variables
+        2. Wire functions into rates, outputs and variables
+        """
 
         rates_object = self.children["rates"]
         if "variables" in self.children:
@@ -145,31 +150,60 @@ class PopulationProcess(AgeStructuredCompositePopulationObject):
         if "outputs" in self.children:
             action_objects.append(self.children["outputs"])
 
-        print("ACTION OBJECTS", action_objects)
-        for action_object in action_objects:
-            print(action_object.children)
-            for object in action_object.children.values():
-                print("HERE", rates_object.output_ports, object.name, object.input_ports)
-                for output in set(rates_object.output_ports).intersection(
-                    set(object.input_ports)
-                ):
-                    #print("HERE", output)
-                    object.add_input_connections(
-                        **{output: f"{self.name}.rates.{output}"}, overwrite=False
-                    )
-                    print("Adding input connection", object.address, output, f"{self.name}.rates.{output}")
-            #action_object.expose_outputs(self)
-            #action_object.expose_variables(self)
+        rates_structured_outputs, rates_unstructured_outputs = get_age_structured_port_set(
+            rates_object, "outputs"
+        )
 
-        #TODO: Expose
+        for action_object in action_objects:
+            print(action_object.address)
+            for child in action_object.children.values():
+                print(child.address)
+                child_structured_inputs, child_unstructured_inputs = get_age_structured_port_set(
+                    child, "inputs"
+                )
+                for input in rates_structured_outputs & child_structured_inputs:
+                    print("ADDING STRUCTURED INPUT CONNECTION", child.address, input, f"{self.name}.rates.{input}")
+                    child.add_age_structured_input(
+                        input, connection=f"{self.name}.rates.{input}"
+                    )
+                for input in child_unstructured_inputs & rates_unstructured_outputs:
+                    print("ADDING UNSTRUCTURED INPUT CONNECTION", child.address, input, f"{self.name}.rates.{input}")
+                    child.add_input_connections(
+                        **{input: f"{self.name}.rates.{input}"}, overwrite=False
+                    )
+        
+        action_objects.append(rates_object)
+
+        functions_object = self.children.get("functions", None)
+        if functions_object:
+            (
+                functions_structured_outputs,
+                functions_unstructured_outputs,
+            ) = get_age_structured_port_set(functions_object, "outputs")
+            for action_object in action_objects:
+                for child in action_object.children.values():
+                    print(child.address)
+                    child_structured_inputs, child_unstructured_inputs = get_age_structured_port_set(
+                        child, "inputs"
+                    )
+                    for input in functions_structured_outputs & child_structured_inputs:
+                        print("ADDING STRUCTURED INPUT CONNECTION", child.address, input, f"{self.name}.functions.{input}")
+                        child.add_age_structured_input(
+                            input, connection=f"{self.name}.functions.{input}"
+                        )
+                    for input in child_unstructured_inputs & functions_unstructured_outputs:
+                        print("ADDING UNSTRUCTURED INPUT CONNECTION", child.address, input, f"{self.name}.functions.{input}")
+                        child.add_input_connections(
+                            **{input: f"{self.name}.functions.{input}"}, overwrite=False
+                        )
+
+        """ 
 
         action_objects.append(rates_object)
 
-        print(self.children)
 
         if "functions" in self.children:
             functions_object = self.children["functions"]
-            print("FUNCTIONS OBJECT", functions_object)
             for child_object in action_objects:
                 for object in child_object.children.values():
                     # TODO: This goes into the children manually. Better way?
@@ -180,8 +214,8 @@ class PopulationProcess(AgeStructuredCompositePopulationObject):
                             **{function: f"{self.name}.functions.{function}"},
                             overwrite=False,
                         )
-                        print("Adding input connection", object.name, function, f"{self.name}.functions.{function}")
-
+        
+        """
 
 class PopulationProcesses(AgeStructuredCompositePopulationObject):
     PARSING_DATA = {
@@ -203,6 +237,3 @@ class PopulationProcesses(AgeStructuredCompositePopulationObject):
                 process_object = process_class(name=process_name, **process_data)
                 self.add_children(process_object)
         super().build_object()
-
-        # NOTE: Manual expose for now
-        # No expose

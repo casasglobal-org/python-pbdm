@@ -50,10 +50,11 @@ class DistributedDelayModel(AgeStructuredCompositePopulationObject):
             rate_name="DD_rate_a",
         )
 
-        rate_structured_outputs = rate_function.get_parameter("structured_outputs", default={}, search_ancestry=False)
-        rate_structured_outputs |= {rate_output: {"axes": ["a"], "connections": {f"{self.name}.odes.DD_rate"}}}
+        #rate_structured_outputs = rate_function.get_parameter("structured_outputs", default={}, search_ancestry=False)
+        #rate_structured_outputs |= {rate_output: {"axes": ["a"], "connections": {f"{self.name}.odes.DD_rate"}}}
         #TODO: update "a" dynamically
-        rate_function.parameters.set(structured_outputs=rate_structured_outputs)
+        #rate_function.parameters.set(structured_outputs=rate_structured_outputs)
+        rate_function.add_age_structured_output(rate_output, connections = f"{self.name}.odes.DD_rate")
 
         self.add_children(dd_odes)
 

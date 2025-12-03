@@ -23,3 +23,5 @@ def _normalise_structured_ports(port_mapping: dict | None, axis_name: str) -> di
             normalised[port_name] = entry
 
     return normalised
+
+

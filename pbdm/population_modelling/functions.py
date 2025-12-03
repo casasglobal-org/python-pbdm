@@ -5,7 +5,6 @@ from ..age_structure.objects import (
     AgeStructuredFunctionalPopulationObject,
     AgeStructuredCompositePopulationObject,
 )
-from ._structured_ports import _normalise_structured_ports
 
 #from pbdm.age_structure.age_structure import AgeStructuredObject
 #from psymple.build import HIERARCHY_SEPARATOR
@@ -79,11 +78,10 @@ class AgeStructuredFunction(AgeStructuredFunctionalPopulationObject):
         **ported_object_kwargs,
     ):
 
-        self._raw_structured_inputs = dict(structured_inputs or {})
-
         super().__init__(
             age_axis=age_axis,
             structured_assignments={},
+            structured_inputs=structured_inputs,
             **ported_object_kwargs,
         )
 
@@ -103,14 +101,8 @@ class AgeStructuredFunction(AgeStructuredFunctionalPopulationObject):
             }
         }
 
-        structured_inputs = _normalise_structured_ports(
-            self._raw_structured_inputs,
-            axis_name,
-        )
-
         self.parameters.set(
             structured_assignments=structured_assignments,
-            structured_inputs=structured_inputs,
         )
 
         super().build_object()
@@ -137,11 +129,10 @@ class AgeStructuredIntegral(AgeStructuredFunctionalPopulationObject):
         **ported_object_kwargs,
     ):
 
-        self._raw_structured_inputs = dict(structured_inputs or {})
-
         super().__init__(
             age_axis=age_axis,
             structured_assignments={},
+            structured_inputs=structured_inputs,
             **ported_object_kwargs,
         )
 
@@ -207,14 +198,8 @@ class AgeStructuredIntegral(AgeStructuredFunctionalPopulationObject):
             }
         }
 
-        structured_inputs = _normalise_structured_ports(
-            self._raw_structured_inputs,
-            axis_name,
-        )
-
         self.parameters.set(
             structured_assignments=structured_assignments,
-            structured_inputs=structured_inputs,
         )
 
         super().build_object()
@@ -257,7 +242,23 @@ class Functions(AgeStructuredCompositePopulationObject):
 
         super().build_object()
 
-        # NOTE: Manual expose for now
+        for function_object in self.children.values():
+            output_name = function_object.get_parameter("output_name", default="function")
+            function_name = function_object.name
+            if isinstance(function_object, AgeStructuredFunctionalPopulationObject):
+                print("ADDING AGE STRUCTURED OUTPUT", function_name, output_name, self.name)
+                self.add_age_structured_output(function_name)
+                function_object.add_age_structured_output(output_name, connections={f"{self.name}.{function_name}"})
+            else: 
+                self.add_output_ports(function_name)
+                function_object.add_output_connections(
+                    **{output_name: f"{self.name}.{function_name}"})
+                
+        
+        
+        
+
+        """
         for child in self.children.values():
             print("CHILD", child.name, child.output_ports)
             if len(child.output_ports) == 1:
@@ -275,7 +276,7 @@ class Functions(AgeStructuredCompositePopulationObject):
                 )
             else:
                 for output_name in child.output_ports:
-                    exposed_name = f"{child.name}__{output_name}"
+                    exposed_name = f"{child.name}"
                     self.add_output_ports(exposed_name)
                     child.add_output_connections(
                         **{output_name: f"{self.name}.{exposed_name}"}
@@ -286,6 +287,7 @@ class Functions(AgeStructuredCompositePopulationObject):
                         output_name,
                         f"{self.name}.{exposed_name}",
                     )
+        """
 
 
 """ class FunctionsOLD(CompositePopulationObject):
