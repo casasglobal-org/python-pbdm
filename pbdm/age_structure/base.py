@@ -117,6 +117,8 @@ class AgeStructuredPopulationMixin:
         updated_structured_axes = dict(self.parameters.get("structured_axes") or {})
         updated_structured_axes[axis_name] = dict(axis_cfg)
 
+        self._ensure_structured_assignment_ports_registered()
+
         structured_inputs = self._normalise_structured_port_map(
             self.get_structured_inputs_spec(),
             axis_name,

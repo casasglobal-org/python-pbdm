@@ -5,6 +5,7 @@ from ..age_structure.objects import (
     AgeStructuredFunctionalPopulationObject,
     AgeStructuredCompositePopulationObject,
 )
+from ..age_structure.helpers import get_age_structured_port_set
 
 #from pbdm.age_structure.age_structure import AgeStructuredObject
 #from psymple.build import HIERARCHY_SEPARATOR
@@ -58,7 +59,6 @@ class Function(FunctionalPopulationObject):
         function = self.get_parameter("function", search_ancestry=False)
         output_name = self.get_parameter("output_name", default="function")
         assignment = (output_name, function)
-        print(assignment)
         self.add_parameter_assignments(assignment)
         super().build_object()
 
@@ -84,8 +84,6 @@ class AgeStructuredFunction(AgeStructuredFunctionalPopulationObject):
             structured_inputs=structured_inputs,
             **ported_object_kwargs,
         )
-
-        print("AGE STRUCTURED FUNCTION INIT", function, output_name)
 
         self.parse_parameters(function=function, output_name=output_name)
 
@@ -225,7 +223,6 @@ class Functions(AgeStructuredCompositePopulationObject):
 
     def build_object(self):
         functions = self.get_parameter("functions", {})
-        print("FUNCTIONS", functions)
         for function_name, function_data in functions.items():
             type = function_data.get("type", "single")
             if type == "single":
@@ -242,17 +239,27 @@ class Functions(AgeStructuredCompositePopulationObject):
 
         super().build_object()
 
-        for function_object in self.children.values():
-            output_name = function_object.get_parameter("output_name", default="function")
-            function_name = function_object.name
-            if isinstance(function_object, AgeStructuredFunctionalPopulationObject):
-                print("ADDING AGE STRUCTURED OUTPUT", function_name, output_name, self.name)
+        for function_name, function_object in self.children.items():
+            child_structured_outputs, child_unstructured_outputs = get_age_structured_port_set(function_object, "outputs")
+            #print("FUNCTION OUTPUTS", function_name, child_structured_outputs, child_unstructured_outputs)
+            for output in child_structured_outputs:
                 self.add_age_structured_output(function_name)
-                function_object.add_age_structured_output(output_name, connections={f"{self.name}.{function_name}"})
-            else: 
+                function_object.add_age_structured_output(output, connections={f"{self.name}.{function_name}"})
+            for output in child_unstructured_outputs:
                 self.add_output_ports(function_name)
                 function_object.add_output_connections(
-                    **{output_name: f"{self.name}.{function_name}"})
+                    **{output: f"{self.name}.{function_name}"}
+                )
+            #output_name = function_object.get_parameter("output_name", default="function")
+            #function_name = function_object.name
+            #if isinstance(function_object, AgeStructuredFunctionalPopulationObject):
+            #    print("ADDING AGE STRUCTURED OUTPUT", function_name, output_name, self.name)
+            #    self.add_age_structured_output(function_name)
+            #    function_object.add_age_structured_output(output_name, connections={f"{self.name}.{function_name}"})
+            #else: 
+            #    self.add_output_ports(function_name)
+            #    function_object.add_output_connections(
+            #        **{output_name: f"{self.name}.{function_name}"})
                 
         
         

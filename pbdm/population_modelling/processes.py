@@ -153,14 +153,15 @@ class PopulationProcess(AgeStructuredCompositePopulationObject):
         rates_structured_outputs, rates_unstructured_outputs = get_age_structured_port_set(
             rates_object, "outputs"
         )
+        print("RATES STRUCTURED OUTPUTS:", rates_structured_outputs, rates_unstructured_outputs)
 
         for action_object in action_objects:
             print(action_object.address)
             for child in action_object.children.values():
-                print(child.address)
                 child_structured_inputs, child_unstructured_inputs = get_age_structured_port_set(
                     child, "inputs"
                 )
+                print("CHILD INPUTS:", child.address, child_structured_inputs, child_unstructured_inputs)
                 for input in rates_structured_outputs & child_structured_inputs:
                     print("ADDING STRUCTURED INPUT CONNECTION", child.address, input, f"{self.name}.rates.{input}")
                     child.add_age_structured_input(
@@ -180,9 +181,9 @@ class PopulationProcess(AgeStructuredCompositePopulationObject):
                 functions_structured_outputs,
                 functions_unstructured_outputs,
             ) = get_age_structured_port_set(functions_object, "outputs")
+            print("FUNCTIONS STRUCTURED OUTPUTS:", functions_structured_outputs, functions_unstructured_outputs)
             for action_object in action_objects:
                 for child in action_object.children.values():
-                    print(child.address)
                     child_structured_inputs, child_unstructured_inputs = get_age_structured_port_set(
                         child, "inputs"
                     )

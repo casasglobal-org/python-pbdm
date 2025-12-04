@@ -10,16 +10,6 @@ from copy import deepcopy
 
 from sympy import S, Symbol, parse_expr, sympify
 
-structured_inputs = {"i": {"axes": ["a"], "connections": {}}}  # optional
-
-structured_axes = {
-    "a": {
-        "k": 3,
-    },
-    "x": {"k": 2},
-}
-
-
 class StructuredPopulationObject(PopulationObject):
     PARSING_DATA = {
         "structured_axes": dict,
@@ -204,6 +194,10 @@ class StructuredPopulationObject(PopulationObject):
 
     def set_structured_variables(self, mapping: dict | None) -> None:
         self._set_structured_port_collection("variables", mapping)
+
+    def _ensure_structured_assignment_ports_registered(self) -> None:
+        """Hook for subclasses to ensure port specs exist for structured assignments."""
+        return
 
     def _sync_structured_port_parameters(self, kind: str | None = None) -> None:
         mapping = {
@@ -659,6 +653,8 @@ class StructuredFunctionalPopulationObject(
         )
 
     def build_object(self):
+        self._ensure_structured_assignment_ports_registered()
+
         structured_assignments = self.get_parameter(
             "structured_assignments", default={}, search_ancestry=False
         )
@@ -671,9 +667,31 @@ class StructuredFunctionalPopulationObject(
             structured_inputs,
         )
         if assignments:
-            self.add_parameter_assignments(*assignments)
+            self.add_parameter_assignments(
+                *assignments,
+                create_output_ports=False,
+            )
 
         super().build_object()
+
+    def _ensure_structured_assignment_ports_registered(self) -> None:
+        super()._ensure_structured_assignment_ports_registered()
+        structured_assignments = self.get_parameter(
+            "structured_assignments", default={}, search_ancestry=False
+        ) or {}
+        outputs_spec = self._structured_port_specs["outputs"]
+        for assignment_name, assignment_data in structured_assignments.items():
+            axes = assignment_data.get("axes") or []
+            existing_entry = outputs_spec.get(assignment_name)
+            existing_axes = existing_entry.get("axes") if existing_entry else None
+            normalised_axes = list(axes)
+            if existing_entry and (existing_axes or []) == normalised_axes:
+                continue
+            self._update_structured_port_spec(
+                "outputs",
+                assignment_name,
+                {"axes": normalised_axes},
+            )
 
 
 class StructuredVariablePopulationObject(
@@ -692,6 +710,8 @@ class StructuredVariablePopulationObject(
         self.parse_parameters(structured_assignments=structured_assignments or {})
 
     def build_object(self):
+        self._ensure_structured_assignment_ports_registered()
+
         structured_assignments = self.get_parameter(
             "structured_assignments", default={}, search_ancestry=False
         )
@@ -704,9 +724,31 @@ class StructuredVariablePopulationObject(
             structured_inputs,
         )
         if assignments:
-            self.add_variable_assignments(*assignments)
+            self.add_variable_assignments(
+                *assignments,
+                create_variable_ports=False,
+            )
 
         super().build_object()
+
+    def _ensure_structured_assignment_ports_registered(self) -> None:
+        super()._ensure_structured_assignment_ports_registered()
+        structured_assignments = self.get_parameter(
+            "structured_assignments", default={}, search_ancestry=False
+        ) or {}
+        variables_spec = self._structured_port_specs["variables"]
+        for assignment_name, assignment_data in structured_assignments.items():
+            axes = assignment_data.get("axes") or []
+            existing_entry = variables_spec.get(assignment_name)
+            existing_axes = existing_entry.get("axes") if existing_entry else None
+            normalised_axes = list(axes)
+            if existing_entry and (existing_axes or []) == normalised_axes:
+                continue
+            self._update_structured_port_spec(
+                "variables",
+                assignment_name,
+                {"axes": normalised_axes},
+            )
 
 
 class StructuredCompositePopulationObject(
