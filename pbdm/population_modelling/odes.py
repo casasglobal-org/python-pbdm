@@ -83,7 +83,7 @@ class AgeStructuredDifferentialEquation(AgeStructuredVariablePopulationObject):
         variable_name = self.get_parameter("variable", default="var")
         function_expr = self.get_parameter("function", search_ancestry=False)
 
-        self.add_structured_variable(variable_name)
+        self.add_age_structured_variable(variable_name)
 
         structured_assignments = {
             variable_name: {

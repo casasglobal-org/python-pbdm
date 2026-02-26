@@ -195,4 +195,8 @@ Thumbs.db
 
 # Testing
 test_*.py
+tests/
 pbdm/api/sample.json
+
+# Dev tests
+dev/
