@@ -49,6 +49,7 @@ class DifferentialEquation(VariablePopulationObject):
         function = self.get_parameter("function", search_ancestry=False)
         variable = self.get_parameter("variable", default="var")
         assignment = (variable, function)
+        print("Building ODE with assignment:", assignment)
         self.add_variable_assignments(assignment)
         super().build_object()
 
@@ -121,6 +122,7 @@ class DifferentialEquations(AgeStructuredCompositePopulationObject):
         odes = self.get_parameter("odes", default={}, search_ancestry=False)
         for ode_name, ode_data in odes.items():
             ode_type = ode_data.get("type", "single")
+            print("Building ODE:", ode_name, "of type:", ode_type)
             if ode_type == "single":
                 ode_class = DifferentialEquation
             elif ode_type == "age_structured":

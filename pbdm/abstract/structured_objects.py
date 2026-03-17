@@ -248,7 +248,7 @@ class StructuredPopulationObject(PopulationObject):
                     self.add_input_ports(*names_to_add)
                 elif kind == "outputs":
                     self.add_output_ports(*names_to_add)
-                else:
+                elif kind == "variables":
                     self.add_variable_ports(*names_to_add)
                 compiled_names.update(names_to_add)
 
@@ -737,15 +737,29 @@ class StructuredVariablePopulationObject(
             "structured_assignments", default={}, search_ancestry=False
         ) or {}
         variables_spec = self._structured_port_specs["variables"]
+        outputs_spec = self._structured_port_specs["outputs"]
         for assignment_name, assignment_data in structured_assignments.items():
             axes = assignment_data.get("axes") or []
             existing_entry = variables_spec.get(assignment_name)
             existing_axes = existing_entry.get("axes") if existing_entry else None
             normalised_axes = list(axes)
             if existing_entry and (existing_axes or []) == normalised_axes:
+                pass
+            else:
+                self._update_structured_port_spec(
+                    "variables",
+                    assignment_name,
+                    {"axes": normalised_axes},
+                )
+
+            existing_output_entry = outputs_spec.get(assignment_name)
+            existing_output_axes = (
+                existing_output_entry.get("axes") if existing_output_entry else None
+            )
+            if existing_output_entry and (existing_output_axes or []) == normalised_axes:
                 continue
             self._update_structured_port_spec(
-                "variables",
+                "outputs",
                 assignment_name,
                 {"axes": normalised_axes},
             )

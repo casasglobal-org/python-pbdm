@@ -5,11 +5,11 @@ from ..age_structure.helpers import get_age_structured_port_set
 from ..age_structure.objects import AgeStructuredCompositePopulationObject
 
 class PopulationProcess(AgeStructuredCompositePopulationObject):
-    PARSING_DATA = {
+    PARSING_DATA = AgeStructuredCompositePopulationObject.PARSING_DATA | {
         "rates": Functions,
         "variables": DifferentialEquations,
         "outputs": Functions,
-        "functions": Functions
+        "functions": Functions,
     }
     """
     Keyword Args: Required Parameters
@@ -219,8 +219,8 @@ class PopulationProcess(AgeStructuredCompositePopulationObject):
         """
 
 class PopulationProcesses(AgeStructuredCompositePopulationObject):
-    PARSING_DATA = {
-        "processes": PopulationProcess
+    PARSING_DATA = AgeStructuredCompositePopulationObject.PARSING_DATA | {
+        "processes": PopulationProcess,
     }
     def __init__(self, processes=None, **ported_object_kwargs):
         """
