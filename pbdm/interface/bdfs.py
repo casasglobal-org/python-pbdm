@@ -1,177 +1,89 @@
-from ..population_modelling.functions import Function
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Mapping
+
 from sympy import parse_expr, symbols
 
+from ..population_modelling.functions import AgeStructuredFunction, Function
+from .core.helpers import merge_parameters
 
-class PBDMFunctionNew(Function):
-    PARSING_DATA = {
-        "form": str,
-        "climate_variable": str,
-        "parameters": dict,
-        "bound_above": (bool, int, float),
-        "bound_below": (bool, int, float),
-    }
 
-    def __init__(
-        self,
-        form: str,
-        climate_variable: str = "x",
-        parameters: dict = {},
-        bound_above: float = False,
-        bound_below: float = False,
-        **ported_object_kwargs,
-    ):
-        super().__init__(**ported_object_kwargs)
-        self.parse_parameters(
-            form=form,
-            climate_variable=climate_variable,
-            parameters=parameters,
-            bound_above=bound_above,
-            bound_below=bound_below,
-        )
+BoundsValue = bool | int | float | str | None
 
-    def build_object(self):
-        form = self.get_parameter("form", search_ancestry=False)
-        climate_variable = self.get_parameter(
-            "climate_variable", default=None, search_ancestry=False
-        )
-        parameters = self.get_parameter("parameters", default={}, search_ancestry=False)
-        bound_above = self.get_parameter(
-            "bound_above", default=False, search_ancestry=False
-        )
-        bound_below = self.get_parameter(
-            "bound_below", default=False, search_ancestry=False
-        )
-        function_form = self._process_function(
-            form, climate_variable, bound_above, bound_below
-        )
-        inputs = self._process_parameters(parameters)
-        self.add_input_connections(**inputs)
-        self.parameters.set(
-            function=function_form,
-        )
-        super().build_object()
 
-    def _process_parameters(self, parameters: dict):
-        if not parameters:
-            return {}
-        inputs = {}
-        for param, data in parameters.items():
-            if isinstance(data, dict):
-                value = data.get("value", 0)
-            elif isinstance(data, (int, float, str)):
-                value = data
-            else:
+@dataclass(slots=True)
+class _ParameterSpec:
+    value: Any = None
+    structured: bool = False
+
+
+@dataclass(slots=True)
+class BiodemographicFunctionSpec:
+    name: str
+    function: str
+    climate_variable: str | None = None
+    parameters: dict | None = None
+    bound_above: BoundsValue = None
+    bound_below: BoundsValue = None
+    function_variable: str = "x"
+    output_name: str | None = None
+    ported_object_kwargs: dict = field(default_factory=dict)
+
+    def _convert_bdf(self) -> str:
+        expression = parse_expr(self.function)
+        variable = symbols(self.function_variable)
+        if variable in expression.free_symbols:
+            if not self.climate_variable:
                 raise ValueError(
-                    f"Invalid parameter data type for '{param}': {type(data)}"
+                    f"Independent variable '{self.function_variable}' found in function "
+                    f"{self.function} but no climate_variable provided."
                 )
-            inputs[param] = value
-        return inputs
+            expression = expression.subs(variable, symbols(self.climate_variable))
+        
+        result = str(expression)
+        if self.bound_above is not None:
+            result = self._apply_bound(result, self.bound_above, upper=True)
+        if self.bound_below is not None:
+            result = self._apply_bound(result, self.bound_below, upper=False)
+        return result
+    
+    @staticmethod
+    def _apply_bound(expression: str, bound: BoundsValue, *, upper: bool) -> str:
+        if bound is False:
+            return expression
+        if bound is True:
+            bound = 1 if upper else 0
+        bound_value = str(bound)
+        wrapper = "min" if upper else "max"
+        return f"{wrapper}({expression}, {bound_value})"
 
-    def _process_function(
-        self,
-        function_form: str,
-        indep_variable: str = None,
-        bound_above: float = None,
-        bound_below: float = None,
-    ):
-        function_form = parse_expr(function_form)
-        print(
-            "PROCESSING FUNCTION",
-            function_form,
-            indep_variable,
-            bound_above,
-            bound_below,
-        )
-        x = symbols("x")
-        if x in function_form.free_symbols:
-            if indep_variable:
-                function_form = function_form.subs(x, indep_variable)
-            else:
-                raise ValueError(
-                    "Independent variable 'x' found in function but no indep_variable provided."
-                )
-        function_form = str(function_form)
-        if bound_above:
-            if bound_above is True:
-                bound_above = 1
-            if isinstance(bound_above, (int, float)):
-                function_form = f"min({function_form}, {bound_above})"
-                # TODO: This should be sympy manipulation for min/max
-        if bound_below:
-            if bound_below is True:
-                bound_below = 0
-            if isinstance(bound_below, (int, float)):
-                function_form = f"max({function_form}, {bound_below})"
-        return function_form
+    def to_dict(self) -> dict:
+        data = {
+            "function": self._convert_bdf(),
+        }
+        if self.output_name is not None:
+            data["output_name"] = self.output_name
+        data.update(self.ported_object_kwargs)
+        if self.parameters is not None:
+            data = merge_parameters(data, "inputs", self.parameters)
+        data["type"] = "single"
+        return data
 
+    def build(self) -> Function:
+        params = self.to_dict()
+        return Function(name=self.name, **params)
 
-class PBDMFunction(Function):
-    def __init__(
-        self,
-        name: str,
-        form: str,
-        climate_variable: str = None,
-        parameters: dict = None,
-        bound_above: float = None,
-        bound_below: float = None,
-    ):
-        function_form = self._process_function(
-            form, climate_variable, bound_above, bound_below
-        )
-        inputs = self._process_parameters(parameters)
-        super().__init__(name=name, function=function_form, inputs=inputs)
+@dataclass(slots=True)
+class AgeStructuredBiodemographicFunctionSpec(BiodemographicFunctionSpec):
+    structured_inputs: dict | list | None = None
 
-    def _process_parameters(self, parameters: dict):
-        if not parameters:
-            return {}
-        inputs = {}
-        for param, data in parameters.items():
-            if isinstance(data, dict):
-                value = data.get("value", 0)
-            elif isinstance(data, (int, float, str)):
-                value = data
-            else:
-                raise ValueError(
-                    f"Invalid parameter data type for '{param}': {type(data)}"
-                )
-            inputs[param] = value
-        return inputs
+    def to_dict(self) -> dict:
+        data = BiodemographicFunctionSpec.to_dict(self)
+        data["type"] = "age_structured"
+        if self.structured_inputs is not None:
+            if isinstance(self.structured_inputs, list):
+                self.structured_inputs = {key: None for key in self.structured_inputs}
+            data = merge_parameters(data, "structured_inputs", self.structured_inputs)
+        return data
 
-    def _process_function(
-        self,
-        function_form: str,
-        indep_variable: str = None,
-        bound_above: float = None,
-        bound_below: float = None,
-    ):
-        function_form = parse_expr(function_form)
-        x = symbols("x")
-        if x in function_form.free_symbols:
-            if indep_variable:
-                function_form = function_form.subs(x, indep_variable)
-            else:
-                raise ValueError(
-                    "Independent variable 'x' found in function but no indep_variable provided."
-                )
-        function_form = str(function_form)
-        if bound_above:
-            if bound_above is True:
-                bound_above = 1
-            if isinstance(bound_above, (int, float)):
-                function_form = f"min({function_form}, {bound_above})"
-                # TODO: This should be sympy manipulation for min/max
-        if bound_below:
-            if bound_below is True:
-                bound_below = 0
-            if isinstance(bound_below, (int, float)):
-                function_form = f"max({function_form}, {bound_below})"
-        return function_form
-
-
-class BiodemographicFunction(PBDMFunction):
-    pass
-    # TODO: form might need to be its own class
-
-
-class ScalarFunction(PBDMFunction):
-    pass

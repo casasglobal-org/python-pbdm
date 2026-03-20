@@ -30,12 +30,12 @@ class Population(ModelWithFunctions):
     def build_object(self):
         if dynamics := self.get_parameter("dynamics", default={}, search_ancestry=False):
             dynamics_class = self.PARSING_DATA["dynamics"]
-            dynamics_object = dynamics_class(name="dynamics", dynamics=dynamics)
+            dynamics_object = dynamics_class(name="dynamics", **dynamics)
             self.add_children(dynamics_object)
 
         if processes := self.get_parameter("processes", default={}, search_ancestry=False):
             processes_class = self.PARSING_DATA["processes"]
-            processes_object = processes_class(name="processes", processes=processes)
+            processes_object = processes_class(name="processes", **processes)
             self.add_children(processes_object)
 
         if sub_populations := self.get_parameter(

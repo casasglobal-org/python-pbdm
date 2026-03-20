@@ -194,8 +194,7 @@ Thumbs.db
 *.pdf
 
 # Testing
-test_*.py
-tests/
+dev/
 pbdm/api/sample.json
 
 # Dev tests

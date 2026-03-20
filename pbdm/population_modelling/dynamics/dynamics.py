@@ -19,7 +19,7 @@ class PopulationDynamics(AgeStructuredCompositePopulationObject):
             for dynamics_name, dynamics_data in dynamics.items():
                 dynamics_class = self.PARSING_DATA["dynamics"]
                 print("HERE", dynamics_name, dynamics_data)
-                dynamics_object = dynamics_class(name=dynamics_name, odes=dynamics_data)
+                dynamics_object = dynamics_class(name=dynamics_name, **dynamics_data)
                 self.add_children(dynamics_object)
 
         super().build_object()

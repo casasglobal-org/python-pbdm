@@ -135,6 +135,7 @@ class DifferentialEquations(AgeStructuredCompositePopulationObject):
 
             ode_kwargs = dict(ode_data)
             ode_kwargs.pop("type", None)
+            print("ODE kwargs:", ode_kwargs)
             ode_object = ode_class(name=ode_name, **ode_kwargs)
             self.add_children(ode_object)
 
