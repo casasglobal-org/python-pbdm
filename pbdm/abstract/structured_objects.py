@@ -1,3 +1,9 @@
+"""Structured population object primitives and assignment expansion helpers.
+
+This module provides base classes that manage structured axes, structured ports,
+and expansion of structured assignments into concrete assignment expressions.
+"""
+
 from .population_objects import (
     PopulationObject,
     CompositePopulationObject,
@@ -11,6 +17,8 @@ from copy import deepcopy
 from sympy import S, Symbol, parse_expr, sympify
 
 class StructuredPopulationObject(PopulationObject):
+    """Population object with structured input/output/variable port support."""
+
     PARSING_DATA = {
         "structured_axes": dict,
     }
@@ -228,6 +236,7 @@ class StructuredPopulationObject(PopulationObject):
         self._compile_structured_ports(force=force)
 
     def _compile_structured_ports(self, *, force: bool = False) -> None:
+        """Materialise all structured port specs into concrete ports and links."""
         for kind in ("inputs", "outputs", "variables"):
             self._compile_structured_port_collection(kind, force=force)
         self._structured_ports_compiled = True
@@ -369,6 +378,7 @@ class StructuredPopulationObject(PopulationObject):
         structured_assignments: dict | None,
         structured_inputs: dict | None,
     ) -> list[tuple[str, str]]:
+        """Expand structured assignment templates into concrete assignment pairs."""
         structured_assignments = structured_assignments or {}
         structured_inputs = structured_inputs or {}
         resolved_assignments: list[tuple[str, str]] = []
@@ -520,6 +530,7 @@ class StructuredPopulationObject(PopulationObject):
         return resolved_assignments
 
     def _apply_reducers(self, terms_map, reducers, reducer_axes):
+        """Aggregate terms over reducer axes using configured reducer methods."""
         if not reducer_axes:
             if len(terms_map) != 1:
                 raise ValueError("Unexpected number of terms without reducers.")
@@ -640,6 +651,8 @@ class StructuredPopulationObject(PopulationObject):
 class StructuredFunctionalPopulationObject(
     FunctionalPopulationObject, StructuredPopulationObject
 ):
+    """Functional object that supports structured assignments and structured outputs."""
+
     PARSING_DATA = StructuredPopulationObject.PARSING_DATA | {"structured_assignments": dict} 
     # REMOVE STRUCTURED VARIABLES
     def __init__(
@@ -697,6 +710,8 @@ class StructuredFunctionalPopulationObject(
 class StructuredVariablePopulationObject(
     VariablePopulationObject, StructuredPopulationObject
 ):
+    """Variable object that supports structured assignments, variables, and outputs."""
+
     PARSING_DATA = StructuredPopulationObject.PARSING_DATA | {
         "structured_assignments": dict
     }
@@ -768,6 +783,8 @@ class StructuredVariablePopulationObject(
 class StructuredCompositePopulationObject(
     CompositePopulationObject, StructuredPopulationObject
 ):
+    """Composite structured object that compiles child structured ports first."""
+
     pass
 
     def compile_structured_ports(self, *, force = False):

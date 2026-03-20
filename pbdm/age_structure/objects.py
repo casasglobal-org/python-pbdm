@@ -1,3 +1,5 @@
+"""Age-structured object specializations built from structured object bases."""
+
 from __future__ import annotations
 
 from ..abstract.structured_objects import (
@@ -11,6 +13,8 @@ from .base import AgeStructuredPopulationMixin
 class AgeStructuredFunctionalPopulationObject(
     AgeStructuredPopulationMixin, StructuredFunctionalPopulationObject
 ):
+    """Functional population object preconfigured with age-axis behaviour."""
+
     PARSING_DATA = StructuredFunctionalPopulationObject.PARSING_DATA | {"age_axis": dict}
 
     def __init__(
@@ -29,6 +33,8 @@ class AgeStructuredFunctionalPopulationObject(
 class AgeStructuredVariablePopulationObject(
     AgeStructuredPopulationMixin, StructuredVariablePopulationObject
 ):
+    """Variable population object preconfigured with age-axis behaviour."""
+
     PARSING_DATA = StructuredVariablePopulationObject.PARSING_DATA | {"age_axis": dict}
 
     def __init__(
@@ -47,6 +53,8 @@ class AgeStructuredVariablePopulationObject(
 class AgeStructuredCompositePopulationObject(
     AgeStructuredPopulationMixin, StructuredCompositePopulationObject
 ):
+    """Composite population object that propagates age-axis behaviour to children."""
+
     PARSING_DATA = StructuredCompositePopulationObject.PARSING_DATA | {"age_axis": dict}
 
     def __init__(
